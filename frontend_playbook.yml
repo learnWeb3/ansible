@@ -1,0 +1,97 @@
+---
+- hosts: frontend
+  gather_facts: false
+  become: true
+  pre_tasks:
+    - name: "Make sure remote system is initialized correctly"
+      raw: "ln -s /usr/bin/python3 /usr/bin/python"
+      register: set_symlink
+      failed_when: set_symlink.rc != 0 and set_symlink.rc != 1
+
+  roles:
+    - role: initialize
+    - role: project_copy
+      vars:
+        destination_folder: /app/
+    - role: expose
+      vars:
+        email_address: antoine.le-guillou@epitech.eu
+        domain_name: nsa-frontend.students-epitech.ovh
+
+  tasks:
+    - name: Install python2
+      apt:
+        name: python2
+        state: present
+
+    - name: Install gcc
+      apt:
+        name: gcc
+        state: present
+
+    - name: Install g++
+      apt:
+        name: g++
+        state: present
+
+    - name: Install make
+      apt:
+        name: make
+        state: present
+
+    - name: install curl
+      apt:
+        name: curl
+        state: present
+
+    - name: install dirmngr
+      apt:
+        name: dirmngr
+        state: present
+
+    - name: install apt-transport-https
+      apt:
+        name: apt-transport-https
+        state: present
+
+    - name: install lsb-release
+      apt:
+        name: lsb-release
+        state: present
+
+    - name: install ca-certificates
+      apt:
+        name: ca-certificates
+        state: present
+
+    - name: Add nodejs source
+      shell: curl -sL https://deb.nodesource.com/setup_12.x | sudo -E bash -
+
+    - name: Install nodejs
+      apt:
+        name: nodejs
+        state: present
+
+    - name: update packages
+      become: true
+      shell: apt update
+
+    - name: upgrade packages
+      become: true
+      shell: apt upgrade -y
+
+    - name: Installing frontend project dependencies
+      become: true
+      become_user: "{{ vms_remote_user }}"
+      shell: cd /app/front && npm i --loglevel verbose
+
+    - name: Installing pm2 node package to manage app in the background
+      become: true
+      shell: npm install pm2 -g
+
+    - name: Delete frontend application running process
+      shell: cd /app/front && pm2 delete frontend
+      ignore_errors: yes
+
+    - name: Start frontend application
+      shell: cd /app/front && pm2 --name frontend start npm -- start

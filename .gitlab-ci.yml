@@ -1,0 +1,118 @@
+stages:
+  - test
+  - deploy-database
+  - deploy-server
+  - deploy-frontend
+
+variables:
+  BACK_PROJECT_DIR: "${CI_PROJECT_DIR}/app/back"
+  FRONT_PROJECT_DIR: "${CI_PROJECT_DIR}/app/front"
+
+# test-back:
+#   stage: test
+#   image: php:7.4
+#   variables:
+#     MYSQL_DATABASE: nsa_back
+#     MYSQL_ROOT_PASSWORD: secret
+#   services:
+#     - mysql:latest
+#   before_script:
+#     # Update packages
+#     - apt-get update -yqq
+#     # Prep for Node
+#     - apt-get install gnupg -yqq
+#     # Upgrade to Node 8
+#     - curl -sL https://deb.nodesource.com/setup_16.x | bash -
+#     # Install dependencies
+#     - apt-get install zip git nodejs libcurl4-gnutls-dev libicu-dev libmcrypt-dev libvpx-dev libjpeg-dev libpng-dev libxpm-dev zlib1g-dev libfreetype6-dev libxml2-dev libexpat1-dev libbz2-dev libgmp3-dev libldap2-dev unixodbc-dev libpq-dev libsqlite3-dev libaspell-dev libsnmp-dev libpcre3-dev libtidy-dev -yqq libonig-dev libzip-dev
+#     # Install php extensions
+#     - docker-php-ext-install mbstring json pdo_mysql curl intl gd xml zip bz2 opcache
+#     # Install Composer and project dependencies.
+#     - curl -sS https://getcomposer.org/installer | php
+#     - mv composer.phar /usr/local/bin/composer
+#     - cd "${BACK_PROJECT_DIR}" && composer install
+#     - cd "${BACK_PROJECT_DIR}" && composer update
+#     # Install Node dependencies.
+#     # comment this out if you don't have a node dependency
+#     - cd "${BACK_PROJECT_DIR}" && npm install
+#     # Copy over testing configuration.
+#     - cd "${BACK_PROJECT_DIR}" && cp .env.testing .env
+#     - cat "${BACK_PROJECT_DIR}"/.env
+#     # Generate an application key. Re-cache.
+#     - cd "${BACK_PROJECT_DIR}" && php artisan key:generate
+#     - cd "${BACK_PROJECT_DIR}" && php artisan config:cache
+#     # Run database migrations.
+#     - cd "${BACK_PROJECT_DIR}" && php artisan migrate
+#     # Run database seed
+#     - cd "${BACK_PROJECT_DIR}" && php artisan db:seed
+#   script:
+#     # run laravel tests
+#     - cd "${BACK_PROJECT_DIR}" && php vendor/bin/phpunit --coverage-text --colors=never
+
+# test-front:
+#   stage: test
+#   image: node:12-alpine
+#   before_script:
+#     - apk add --no-cache python2 g++ make
+#     - apk add chromium
+#     - apk add chromium-chromedriver
+#     - export CHROME_BIN=/usr/bin/chromium-browser
+#     - cd "${FRONT_PROJECT_DIR}" && npm i --no-audit --loglevel verbose
+#   script:
+#     - cd "${FRONT_PROJECT_DIR}" && npm run test
+
+deploy-database:
+  stage: deploy-database
+  image: antoineleguillou/nsa-ansible:2.14.1
+  variables:
+    PLAYBOOK_PATH: "${CI_PROJECT_DIR}/database_playbook.yml"
+  before_script:
+    - service ssh start
+    - eval $(ssh-agent)
+    - chmod 400 "${SSH_VMS_PRIVATE_KEY}"
+    - ssh-add "${SSH_VMS_PRIVATE_KEY}"
+  script:
+    - ansible-playbook --private-key "${SSH_VMS_PRIVATE_KEY}" -u "${ANSIBLE_VMS_REMOTE_USER}" -i "${ANSIBLE_INVENTORY}" -e "ansible_python_interpreter=/usr/bin/python3 database_name=${DATABASE_NAME} database_charset=${DATABASE_CHARSET} database_collation=${DATABASE_COLLATION}" "${PLAYBOOK_PATH}"
+
+deploy-server:
+  stage: deploy-server
+  image: antoineleguillou/nsa-ansible:2.14.1
+  variables:
+    PLAYBOOK_PATH: "${CI_PROJECT_DIR}/server_playbook.yml"
+    NGINX_CONF: "${CI_PROJECT_DIR}/nginx/server"
+  before_script:
+    - service ssh start
+    - eval $(ssh-agent)
+    - chmod 400 "${SSH_VMS_PRIVATE_KEY}"
+    - ssh-add "${SSH_VMS_PRIVATE_KEY}"
+  script:
+    - ansible-playbook --private-key "${SSH_VMS_PRIVATE_KEY}" -u "${ANSIBLE_VMS_REMOTE_USER}" -i "${ANSIBLE_INVENTORY}" -e "ansible_python_interpreter=/usr/bin/python3 nginx_conf=${NGINX_CONF} project_dir=${BACK_PROJECT_DIR} vms_remote_user=${ANSIBLE_VMS_REMOTE_USER}" "${PLAYBOOK_PATH}"
+
+rollback-database:
+  stage: deploy-server
+  image: antoineleguillou/nsa-ansible:2.14.1
+  variables:
+    PLAYBOOK_PATH: "${CI_PROJECT_DIR}/rollback_database_playbook.yml"
+  before_script:
+    - service ssh start
+    - eval $(ssh-agent)
+    - chmod 400 "${SSH_VMS_PRIVATE_KEY}"
+    - ssh-add "${SSH_VMS_PRIVATE_KEY}"
+  script:
+    - ansible-playbook --private-key "${SSH_VMS_PRIVATE_KEY}" -u "${ANSIBLE_VMS_REMOTE_USER}" -i "${ANSIBLE_INVENTORY}" -e "ansible_python_interpreter=/usr/bin/python3 project_dir=${BACK_PROJECT_DIR} vms_remote_user=${ANSIBLE_VMS_REMOTE_USER} database_rollback_step_count=${DATABASE_ROLLBACK_STEP_COUNT}" "${PLAYBOOK_PATH}"
+  rules:
+    - if: $CI_MERGE_REQUEST_APPROVED && $CI_MERGE_REQUEST_SOURCE_BRANCH_NAME == $DATABASE_ROLLBACK_BRANCH_NAME && $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == $PROJECT_MAIN_BRANCH_NAME
+
+deploy-frontend:
+  stage: deploy-frontend
+  image: antoineleguillou/nsa-ansible:2.14.1
+  variables:
+    PLAYBOOK_PATH: "${CI_PROJECT_DIR}/frontend_playbook.yml"
+    NGINX_CONF: "${CI_PROJECT_DIR}/nginx/frontend"
+  before_script:
+    - service ssh start
+    - eval $(ssh-agent)
+    - chmod 400 "${SSH_VMS_PRIVATE_KEY}"
+    - ssh-add "${SSH_VMS_PRIVATE_KEY}"
+  script:
+    - ansible-playbook --private-key "${SSH_VMS_PRIVATE_KEY}" -u "${ANSIBLE_VMS_REMOTE_USER}" -i "${ANSIBLE_INVENTORY}" -e "ansible_python_interpreter=/usr/bin/python3 nginx_conf=${NGINX_CONF} project_dir=${FRONT_PROJECT_DIR} vms_remote_user=${ANSIBLE_VMS_REMOTE_USER}" "${PLAYBOOK_PATH}"

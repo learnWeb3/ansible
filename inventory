@@ -1,0 +1,6 @@
+[database]
+34.155.37.6 ansible_become_password=foobar
+[backend]
+34.163.48.173 ansible_become_password=foobar
+[frontend]
+34.155.7.5 ansible_become_password=foobar

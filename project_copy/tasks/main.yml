@@ -1,0 +1,15 @@
+---
+# tasks file for project_copy
+
+- name: copying project files
+  become: true
+  copy:
+    src: "{{ project_dir }}"
+    dest: "{{ destination_folder }}"
+    group: "{{ vms_remote_user }}"
+    owner: "{{ vms_remote_user }}"
+    mode: "0777"
+
+- name: ensuring project files have correct permissions
+  become: true
+  shell: chmod -R 777 "{{ destination_folder }}"

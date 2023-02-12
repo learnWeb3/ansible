@@ -1,0 +1,22 @@
+---
+- hosts: backend
+  gather_facts: false
+  become: true
+  pre_tasks:
+    - name: "Make sure remote system is initialized correctly"
+      raw: "ln -s /usr/bin/python3 /usr/bin/python"
+      register: set_symlink
+      failed_when: set_symlink.rc != 0 and set_symlink.rc != 1
+
+  tasks:
+    - name: update repository index
+      apt:
+        update_cache: true
+
+    - name: Upgrade all apt packages
+      apt: upgrade=dist force_apt_get=yes
+
+    - name: Rollback database
+      become: true
+      become_user: "{{ vms_remote_user }}"
+      shell: cd /app/back && php artisan migrate:rollback --step="{{ database_rollback_step_count }}"

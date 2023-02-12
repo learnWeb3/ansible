@@ -1,0 +1,10 @@
+---
+# tasks file for initialize
+
+- name: update packages
+  become: true
+  shell: apt update
+
+- name: upgrade packages
+  become: true
+  shell: apt upgrade -y
