@@ -4,6 +4,20 @@ This repository contains files in order to setup a complete CI/CD pipeline.
 
 - Continuous Integration (CI): Integrate code changes on the server hosting the application 
 - Continuous Delivery (CD): Make the app available to the end users
+  
+A specific server has been setup with docker in order to host a gitlab server, it is accessible at the following address: https://gitlab.students-epitech.ovh
+
+You can access the gitlab using the following credentials:
+
+- Admin: root
+- Password: foobarfoobar
+- New registration are pending until administrator(s) approvals
+  
+In order to register a runner you will need to issue the following command: 
+
+```bash
+docker exec -it <gitlab runner container name or id> gitlab-runner register
+```
 
 The application is deployed on three different servers communicating with each others:
 - database host with mysql server
@@ -37,3 +51,16 @@ Applications are accessible at the following URL:
 ```bash  
   mysql -u admin -h $MYSQL_SERVER_IP
 ```
+
+## Configurations
+
+Gitlab pipelines uses the following environnement variables: 
+- ANSIBLE_INVENTORY (type file, containing hosts inventory)
+- ANSIBLE_VMS_REMOTE_USER (type variable, containing host user name)
+- DATABASE_CHARSET (type variable, containing mysql database charset)
+- DATABASE_COLLATION (type variable, containing mysql database collation)
+- DATABASE_NAME (type variable, containing mysql database name)
+- DATABASE_ROLLBACK_BRANCH_NAME (type variable, containing gitlab rollback branch name - source branch from which an approved pull request to target branch aka PROJECT_MAIN_BRANCH_NAME would trigger a database rollback operation - laravel rollback )
+- DATABASE_ROLLBACK_STEP_COUNT (type variable, number of step to go back during database rollback operation)
+- PROJECT_MAIN_BRANCH_NAME (type variable, main project branch aka main or master)
+- SSH_VMS_PRIVATE_KEY (type file, containing SSH private key to connect to hosts)
